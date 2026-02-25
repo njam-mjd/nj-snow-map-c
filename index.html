@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NJ Snow Forecast · NWS Live Data</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #040d18;
+      --surface: #071a2e;
+      --border:  #0e2d4a;
+      --muted:   #2a4a6a;
+      --text:    #c8dff0;
+      --bright:  #e8f4ff;
+      --accent:  #4fc3f7;
+      --accent2: #0288d1;
+      --warn:    #ff6b35;
+    }
+
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── HEADER ──────────────────────────────────── */
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 12px;
+      flex-wrap: wrap;
+      z-index: 1000;
+    }
+
+    #title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      letter-spacing: 3px;
+      color: var(--bright);
+      line-height: 1;
+    }
+
+    #subtitle {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-top: 2px;
+    }
+
+    /* ── TIME SELECTOR ───────────────────────────── */
+    #time-controls { display: flex; align-items: center; gap: 5px; }
+
+    .time-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-right: 4px;
+    }
+
+    .time-btn {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      padding: 5px 13px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      clip-path: polygon(5px 0%, 100% 0%, calc(100% - 5px) 100%, 0% 100%);
+    }
+    .time-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .time-btn.active { background: var(--accent2); border-color: var(--accent); color: #fff; }
+
+    /* ── STATUS / REFRESH ────────────────────────── */
+    #header-right { display: flex; align-items: center; gap: 14px; }
+
+    #status {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 1px;
+    }
+
+    #refresh-btn {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      padding: 6px 14px;
+      border: 1px solid var(--accent2);
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.15s;
+    }
+    #refresh-btn:hover:not(:disabled) { background: var(--accent2); color: #fff; }
+    #refresh-btn:disabled { opacity: 0.35; cursor: default; }
+
+    /* ── MAIN LAYOUT ─────────────────────────────── */
+    #main { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+    /* ── MAP ─────────────────────────────────────── */
+    #map { flex: 1; }
+    .leaflet-container { background: var(--bg) !important; }
+
+    /* ── SIDEBAR ─────────────────────────────────── */
+    #sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 13px;
+      letter-spacing: 3px;
+      color: var(--accent);
+      padding: 12px 16px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── LEGEND ──────────────────────────────────── */
+    #legend { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    .legend-row { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+    .legend-swatch { width: 26px; height: 11px; border-radius: 2px; flex-shrink: 0; }
+    .legend-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text); }
+
+    /* ── STATION LIST ────────────────────────────── */
+    #station-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+    #station-list::-webkit-scrollbar { width: 4px; }
+    #station-list::-webkit-scrollbar-track { background: transparent; }
+    #station-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .station-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 16px;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: all 0.1s;
+    }
+    .station-item:hover { background: rgba(79,195,247,.06); border-left-color: var(--accent); }
+    .station-item.active { background: rgba(79,195,247,.1); border-left-color: var(--accent); }
+    .station-name { font-size: 12px; color: var(--text); }
+    .station-snow { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: var(--bright); }
+    .station-snow.none { color: var(--muted); font-size: 11px; }
+    .station-snow.err  { color: var(--warn);  font-size: 10px; }
+    .station-snow.pend { color: var(--muted); font-size: 10px; animation: pulse 1.5s infinite; }
+
+    /* ── LOADING OVERLAY ─────────────────────────── */
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(4,13,24,.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      gap: 18px;
+      transition: opacity .4s;
+    }
+    #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .spinner {
+      width: 44px; height: 44px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    .loading-text {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    #load-progress { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--accent); }
+
+    /* ── POPUPS ──────────────────────────────────── */
+    .leaflet-popup-content-wrapper {
+      background: var(--surface) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 4px !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,.6) !important;
+      color: var(--text) !important;
+    }
+    .leaflet-popup-tip { background: var(--surface) !important; }
+    .leaflet-popup-content { margin: 14px 18px !important; min-width: 210px; }
+
+    .pop-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 19px;
+      letter-spacing: 2px;
+      color: var(--bright);
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+    .pop-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 6px;
+    }
+    .pop-k {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .pop-v {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--bright);
+    }
+    .pop-v.zero  { color: var(--muted); font-size: 11px; }
+    .pop-v.heavy { color: #ff6b35; }
+    .pop-meta {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      margin-top: 10px;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+      line-height: 1.7;
+    }
+
+    /* ── ERROR TOAST ─────────────────────────────── */
+    #error-toast {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,107,53,.12);
+      border: 1px solid var(--warn);
+      color: var(--warn);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      padding: 8px 18px;
+      z-index: 1500;
+      letter-spacing: 1px;
+      text-align: center;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity .3s;
+      pointer-events: none;
+    }
+    #error-toast.show { opacity: 1; }
+
+    /* ── DECORATIVE SNOWFLAKES ───────────────────── */
+    .flake {
+      position: fixed;
+      top: -12px;
+      color: rgba(79,195,247,.1);
+      animation: fall linear infinite;
+      pointer-events: none;
+      z-index: 0;
+      user-select: none;
+    }
+
+    /* ── KEYFRAMES ───────────────────────────────── */
+    @keyframes spin  { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%,100% { opacity:.3; } 50% { opacity:1; } }
+    @keyframes fall  { to { transform: translateY(105vh) rotate(360deg); } }
+
+    /* ── MOBILE ──────────────────────────────────── */
+    @media (max-width: 680px) {
+      #sidebar { display: none; }
+      #title   { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="flakes"></div>
+
+<header id="header">
+  <div>
+    <div id="title">❄ NJ SNOW FORECAST</div>
+    <div id="subtitle">National Weather Service · Live Gridpoint Data · Auto-Refreshes Every 30 min</div>
+  </div>
+
+  <div id="time-controls">
+    <span class="time-label">Window:</span>
+    <button class="time-btn active" data-hours="24">24H</button>
+    <button class="time-btn"        data-hours="48">48H</button>
+    <button class="time-btn"        data-hours="72">72H</button>
+    <button class="time-btn"        data-hours="168">7 DAY</button>
+  </div>
+
+  <div id="header-right">
+    <div id="status">Loading…</div>
+    <button id="refresh-btn">↻ Refresh</button>
+  </div>
+</header>
+
+<div id="main">
+  <div id="map"></div>
+
+  <aside id="sidebar">
+    <div class="panel-title">SNOWFALL TOTALS</div>
+
+    <div id="legend">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">LEGEND — INCHES</div>
+      <div class="legend-row"><div class="legend-swatch" style="background:#1a2a3a;border:1px solid #0e2d4a"></div><span class="legend-label">0" — No snow expected</span></div>
+      <div class="legend-row"><div class="legend-swatch" style="background:#b3e5fc"></div><span class="legend-label">Trace – 1"</span></div>
+      <div class="legend-row"><div class="legend-swatch" style="background:#4fc3f7"></div><span class="legend-label">1" – 3"</span></div>
+      <div class="legend-row"><div class="legend-swatch" style="background:#0288d1"></div><span class="legend-label">3" – 6"</span></div>
+      <div class="legend-row"><div class="legend-swatch" style="background:#01579b"></div><span class="legend-label">6" – 12"</span></div>
+      <div class="legend-row"><div class="legend-swatch" style="background:#5c35a0"></div><span class="legend-label">12" – 18"</span></div>
+      <div class="legend-row"><div class="legend-swatch" style="background:#9c27b0"></div><span class="legend-label">18" +"</span></div>
+    </div>
+
+    <div id="station-list"></div>
+  </aside>
+
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-text">Fetching NWS Data</div>
+    <div id="load-progress">Initializing…</div>
+  </div>
+
+  <div id="error-toast"></div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   NJ SNOWFALL FORECAST MAP
+   Source: National Weather Service API  (api.weather.gov)
+   - Fetches snowfallAmount gridpoint data for 25 NJ locations
+   - Sums forecasted snowfall within selected time window
+   - Caches grid resolution for 24h, forecast data for 1h
+   - Auto-refreshes every 30 minutes
+   - Incrementally renders as each point resolves
+═══════════════════════════════════════════════════════════════ */
+'use strict';
+
+// ── CONFIG ────────────────────────────────────────────────
+const NWS_BASE     = 'https://api.weather.gov';
+const UA           = '(nj-snow-forecast-map, public-github-pages)';
+const AUTO_MS      = 30 * 60 * 1000;         // auto-refresh interval
+const GRID_TTL     = 24 * 60 * 60 * 1000;    // cache grid assignments 24h
+const DATA_TTL     =      60 * 60 * 1000;    // cache forecast data 1h
+const CONCURRENCY  = 4;                       // parallel API calls
+
+// ── NJ FORECAST POINTS ───────────────────────────────────
+const POINTS = [
+  { name: 'Wantage',         lat: 41.2265, lon: -74.6279 },
+  { name: 'Newton',          lat: 41.0548, lon: -74.7529 },
+  { name: 'Hackettstown',    lat: 40.8540, lon: -74.8290 },
+  { name: 'Morristown',      lat: 40.7968, lon: -74.4815 },
+  { name: 'Paterson',        lat: 40.9168, lon: -74.1718 },
+  { name: 'Hoboken',         lat: 40.7440, lon: -74.0324 },
+  { name: 'Newark',          lat: 40.7357, lon: -74.1724 },
+  { name: 'Somerville',      lat: 40.5754, lon: -74.6096 },
+  { name: 'New Brunswick',   lat: 40.4862, lon: -74.4518 },
+  { name: 'Edison',          lat: 40.5187, lon: -74.4121 },
+  { name: 'Long Branch',     lat: 40.3043, lon: -73.9874 },
+  { name: 'Freehold',        lat: 40.2615, lon: -74.2732 },
+  { name: 'Trenton',         lat: 40.2171, lon: -74.7429 },
+  { name: 'Point Pleasant',  lat: 40.0826, lon: -74.0668 },
+  { name: 'Lakewood',        lat: 40.0979, lon: -74.2179 },
+  { name: 'Cherry Hill',     lat: 39.9342, lon: -74.9982 },
+  { name: 'Toms River',      lat: 39.9537, lon: -74.1979 },
+  { name: 'Manahawkin',      lat: 39.6937, lon: -74.2593 },
+  { name: 'Camden',          lat: 39.9259, lon: -75.1196 },
+  { name: 'Vineland',        lat: 39.4862, lon: -75.0257 },
+  { name: 'Atlantic City',   lat: 39.3643, lon: -74.4229 },
+  { name: 'Bridgeton',       lat: 39.4273, lon: -75.2341 },
+  { name: 'Millville',       lat: 39.4026, lon: -75.0393 },
+  { name: 'Cape May',        lat: 38.9351, lon: -74.9060 },
+  { name: 'Wildwood',        lat: 38.9918, lon: -74.8149 },
+];
+
+// ── STATE ─────────────────────────────────────────────────
+let windowHours = 24;
+let stations    = [];
+let layerGroup  = L.layerGroup();
+let activeIdx   = null;
+let autoTimer   = null;
+
+// ── MAP INITIALIZATION ────────────────────────────────────
+const MAP = L.map('map', { center: [40.1, -74.5], zoom: 8, zoomControl: false });
+L.control.zoom({ position: 'topright' }).addTo(MAP);
+layerGroup.addTo(MAP);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  subdomains: 'abcd',
+  maxZoom: 19,
+  attribution: '© <a href="https://carto.com" style="color:#4fc3f7">CARTO</a> | Weather: <a href="https://weather.gov" style="color:#4fc3f7">NWS</a>'
+}).addTo(MAP);
+
+// Labels on top pane so markers don't cover place names
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+  subdomains: 'abcd',
+  maxZoom: 19,
+  pane: 'shadowPane',
+}).addTo(MAP);
+
+// ── VISUAL SCALES ─────────────────────────────────────────
+function snowColor(inches) {
+  if (inches <= 0)  return '#1a2a3a';
+  if (inches <  1)  return '#b3e5fc';
+  if (inches <  3)  return '#4fc3f7';
+  if (inches <  6)  return '#0288d1';
+  if (inches < 12)  return '#01579b';
+  if (inches < 18)  return '#5c35a0';
+  return '#9c27b0';
+}
+
+function snowOpacity(inches) {
+  if (inches <= 0) return 0.3;
+  if (inches <  1) return 0.55;
+  if (inches <  3) return 0.72;
+  if (inches <  6) return 0.85;
+  return 0.95;
+}
+
+function snowRadius(inches) {
+  if (inches <= 0)  return 13;
+  if (inches <  1)  return 17;
+  if (inches <  3)  return 21;
+  if (inches <  6)  return 26;
+  if (inches < 12)  return 32;
+  if (inches < 18)  return 38;
+  return 45;
+}
+
+// ── LOCAL STORAGE CACHE ───────────────────────────────────
+function cSet(key, val, ttl) {
+  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), ttl, val })); } catch(_) {}
+}
+function cGet(key) {
+  try {
+    const it = JSON.parse(localStorage.getItem(key));
+    if (!it) return null;
+    if (Date.now() - it.ts > it.ttl) { localStorage.removeItem(key); return null; }
+    return it.val;
+  } catch(_) { return null; }
+}
+
+// ── ISO 8601 DURATION → MILLISECONDS ─────────────────────
+function isoMs(dur) {
+  if (!dur || typeof dur !== 'string') return 0;
+  const m = dur.match(/P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?/);
+  if (!m) return 0;
+  return ((+(m[1] || 0) * 24 + +(m[2] || 0)) * 60 + +(m[3] || 0)) * 60000 + +(m[4] || 0) * 1000;
+}
+
+// ── SUM SNOWFALL WITHIN TIME WINDOW ──────────────────────
+// NWS values are in meters; we return inches.
+// Handles partial period overlaps proportionally.
+function sumSnow(values, hours) {
+  if (!values || !values.length) return 0;
+  const now    = Date.now();
+  const winEnd = now + hours * 3600000;
+  let total = 0;
+
+  for (const entry of values) {
+    const { validTime, value } = entry || {};
+    if (value === null || value === undefined || value < 0) continue;
+    if (!validTime || !validTime.includes('/')) continue;   // guard malformed entries
+
+    const slashIdx = validTime.indexOf('/');
+    const startStr = validTime.slice(0, slashIdx);
+    const durStr   = validTime.slice(slashIdx + 1);
+
+    const pStart = +new Date(startStr);
+    const pDur   = isoMs(durStr);
+    if (!pDur || isNaN(pStart)) continue;                   // guard unparseable times
+    const pEnd = pStart + pDur;
+
+    // Only consider periods that overlap [now, winEnd]
+    if (pStart >= winEnd || pEnd <= now) continue;
+
+    const overlapMs = Math.min(pEnd, winEnd) - Math.max(pStart, now);
+    total += value * (overlapMs / pDur);
+  }
+
+  return total * 39.3701;  // meters → inches
+}
+
+// ── NWS API HELPERS ───────────────────────────────────────
+// Note: 'User-Agent' is a forbidden header in browsers and cannot be set via
+// fetch(). The browser's own UA is sent automatically; NWS accepts this fine.
+const HEADERS = { 'Accept': 'application/geo+json' };
+
+async function resolvePoint(lat, lon) {
+  const ckey   = `nws_grid_${lat.toFixed(4)}_${lon.toFixed(4)}`;
+  const cached = cGet(ckey);
+  if (cached) return cached;
+
+  const res = await fetch(
+    `${NWS_BASE}/points/${lat.toFixed(4)},${lon.toFixed(4)}`,
+    { headers: HEADERS }
+  );
+  if (!res.ok) throw new Error(`NWS /points/ returned ${res.status}`);
+
+  const { properties: p } = await res.json();
+  const result = { office: p.gridId, gridX: p.gridX, gridY: p.gridY };
+  cSet(ckey, result, GRID_TTL);
+  return result;
+}
+
+async function fetchGridSnow(office, gridX, gridY) {
+  const ckey   = `nws_snow_${office}_${gridX}_${gridY}`;
+  const cached = cGet(ckey);
+  if (cached) return cached;
+
+  const res = await fetch(
+    `${NWS_BASE}/gridpoints/${office}/${gridX},${gridY}`,
+    { headers: HEADERS }
+  );
+  if (!res.ok) throw new Error(`NWS /gridpoints/ returned ${res.status}`);
+
+  const json   = await res.json();
+  const values = json.properties?.snowfallAmount?.values || [];
+  cSet(ckey, values, DATA_TTL);
+  return values;
+}
+
+// ── POPUP HTML ────────────────────────────────────────────
+function makePopup(s) {
+  const WINDOWS = [
+    { label: '24 hours', h: 24  },
+    { label: '48 hours', h: 48  },
+    { label: '72 hours', h: 72  },
+    { label: '7 days',   h: 168 },
+  ];
+
+  const fmtV = (v) => {
+    if (v === null) return `<span class="pop-v zero">—</span>`;
+    const cls = v < 0.05 ? 'zero' : v >= 12 ? 'heavy' : '';
+    const txt = v < 0.05 ? 'None' : v.toFixed(1) + '"';
+    return `<span class="pop-v ${cls}">${txt}</span>`;
+  };
+
+  const rows = WINDOWS.map(({ label, h }) => {
+    const v = s.snowValues != null ? sumSnow(s.snowValues, h) : null;
+    return `<div class="pop-row"><span class="pop-k">${label}</span>${fmtV(v)}</div>`;
+  }).join('');
+
+  const meta = s.gridInfo
+    ? `NWS Office: ${s.gridInfo.office} · Grid: ${s.gridInfo.gridX},${s.gridInfo.gridY}`
+    : 'Grid info unavailable';
+
+  return `<div class="pop-title">${s.name}</div>
+    ${rows}
+    <div class="pop-meta">${meta}<br>${s.lat.toFixed(4)}°N, ${Math.abs(s.lon).toFixed(4)}°W</div>`;
+}
+
+// ── RENDER MARKERS ────────────────────────────────────────
+// Store markers in a plain array (same index as stations[]) so sidebar
+// clicks can reliably open the correct popup.
+const markerArray = [];
+
+function renderMarkers() {
+  layerGroup.clearLayers();
+  markerArray.length = 0;
+
+  stations.forEach((s, idx) => {
+    const snow = s.snowInches ?? 0;
+
+    const marker = L.circleMarker([s.lat, s.lon], {
+      radius:      snowRadius(snow),
+      fillColor:   s.error ? '#1a1a2a' : snowColor(snow),
+      fillOpacity: s.error ? 0.25      : snowOpacity(snow),
+      color:       s.error ? '#333'    : (snow > 0 ? 'rgba(255,255,255,0.35)' : 'rgba(79,195,247,0.3)'),
+      weight:      snow > 6 ? 2 : 1,
+    });
+
+    marker.bindPopup(makePopup(s), { maxWidth: 270 });
+    marker.on('click', () => { setActive(idx); marker.openPopup(); });
+    layerGroup.addLayer(marker);
+    markerArray[idx] = marker;   // index matches stations[]
+  });
+}
+
+// ── RENDER SIDEBAR LIST ───────────────────────────────────
+function renderList() {
+  const list   = document.getElementById('station-list');
+  const sorted = stations.map((s, idx) => ({ ...s, idx }))
+                         .sort((a, b) => (b.snowInches ?? -1) - (a.snowInches ?? -1));
+
+  list.innerHTML = sorted.map((s, i) => {
+    let txt, cls;
+    if (s.snowInches === null) { txt = '···'; cls = 'pend'; }
+    else if (s.error)          { txt = 'ERR'; cls = 'err'; }
+    else if (s.snowInches < 0.05) { txt = 'None'; cls = 'none'; }
+    else                       { txt = s.snowInches.toFixed(1) + '"'; cls = ''; }
+
+    const activeCls = s.idx === activeIdx ? ' active' : '';
+    return `<div class="station-item${activeCls}" data-idx="${s.idx}"
+               style="animation: fadeIn .2s ${i * 15}ms both">
+      <span class="station-name">${s.name}</span>
+      <span class="station-snow ${cls}">${txt}</span>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.station-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = +el.dataset.idx;
+      const s   = stations[idx];
+      setActive(idx);
+      MAP.flyTo([s.lat, s.lon], 11, { duration: 0.9 });
+      // Use markerArray for reliable index→marker lookup
+      markerArray[idx]?.openPopup();
+    });
+  });
+
+  // Inject fadeIn keyframe if missing
+  if (!document.getElementById('fade-style')) {
+    const st = document.createElement('style');
+    st.id = 'fade-style';
+    st.textContent = '@keyframes fadeIn { from { opacity:0; transform:translateY(-3px); } to { opacity:1; } }';
+    document.head.appendChild(st);
+  }
+}
+
+function setActive(idx) {
+  activeIdx = idx;
+  document.querySelectorAll('.station-item').forEach(el => {
+    el.classList.toggle('active', +el.dataset.idx === idx);
+  });
+}
+
+// ── UI HELPERS ────────────────────────────────────────────
+const overlay   = document.getElementById('loading-overlay');
+const progEl    = document.getElementById('load-progress');
+const statusEl  = document.getElementById('status');
+const toastEl   = document.getElementById('error-toast');
+let toastTimer;
+
+function setOverlay(show) { overlay.classList.toggle('hidden', !show); }
+function setStatus(t)     { statusEl.textContent = t; }
+
+function showToast(msg) {
+  clearTimeout(toastTimer);
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 8000);
+}
+
+// ── MAIN DATA FETCH ───────────────────────────────────────
+async function fetchAll(force = false) {
+  if (autoTimer) clearTimeout(autoTimer);
+  document.getElementById('refresh-btn').disabled = true;
+  setOverlay(true);
+  setStatus('Fetching…');
+
+  // On force-refresh, clear forecast cache (preserve grid cache which is stable)
+  if (force) {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith('nws_snow_')) localStorage.removeItem(k);
+    }
+  }
+
+  // Init placeholders
+  stations = POINTS.map(p => ({ ...p, snowInches: null, snowValues: null, error: false }));
+  renderList();
+
+  let done = 0;
+  progEl.textContent = `0 / ${POINTS.length} points`;
+
+  // Work queue with bounded concurrency
+  const queue = POINTS.map((p, i) => ({ p, i }));
+
+  async function worker() {
+    while (queue.length > 0) {
+      const { p, i } = queue.shift();
+      try {
+        const gridInfo   = await resolvePoint(p.lat, p.lon);
+        const snowValues = await fetchGridSnow(gridInfo.office, gridInfo.gridX, gridInfo.gridY);
+        const snowInches = sumSnow(snowValues, windowHours);
+        stations[i] = { ...p, gridInfo, snowValues, snowInches, error: false };
+      } catch (err) {
+        console.warn(`[${p.name}] ${err.message}`);
+        stations[i] = { ...p, snowInches: 0, snowValues: null, error: true, errMsg: err.message };
+      }
+      done++;
+      progEl.textContent = `${done} / ${POINTS.length} points`;
+      // Incremental render — guarded so a render error can't kill the worker
+      try { renderMarkers(); renderList(); } catch(e) { console.error('Incremental render error:', e); }
+    }
+  }
+
+  try {
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+    const nOk  = stations.filter(s => !s.error).length;
+    const nErr = stations.filter(s =>  s.error).length;
+    try { renderMarkers(); renderList(); } catch(e) { console.error('Render error:', e); }
+    setStatus(`Updated ${new Date().toLocaleTimeString()} · ${nOk} / ${POINTS.length} pts OK`);
+    if (nErr > 0) {
+      showToast(`${nErr} location(s) unavailable — NWS may be rate-limiting. Try refreshing.`);
+    }
+  } catch (err) {
+    console.error('fetchAll failed:', err);
+    setStatus('Error loading data — check console');
+  } finally {
+    // Always dismiss overlay and re-enable button regardless of what happened above
+    setOverlay(false);
+    document.getElementById('refresh-btn').disabled = false;
+    autoTimer = setTimeout(() => fetchAll(), AUTO_MS);
+  }
+}
+
+// ── TIME WINDOW BUTTONS ───────────────────────────────────
+document.querySelectorAll('.time-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const h = +btn.dataset.hours;
+    if (h === windowHours) return;
+    windowHours = h;
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    // Recompute totals from cached raw values — no API call needed
+    stations.forEach(s => {
+      if (s.snowValues) s.snowInches = sumSnow(s.snowValues, h);
+    });
+    renderMarkers();
+    renderList();
+  });
+});
+
+document.getElementById('refresh-btn').addEventListener('click', () => fetchAll(true));
+
+// ── DECORATIVE SNOWFLAKES ─────────────────────────────────
+(function spawnFlakes() {
+  const container = document.getElementById('flakes');
+  const glyphs = ['❄', '❅', '❆', '·', '*'];
+  for (let i = 0; i < 22; i++) {
+    const el   = document.createElement('div');
+    el.className = 'flake';
+    el.textContent = glyphs[i % glyphs.length];
+    const size  = 8 + Math.random() * 14;
+    const dur   = 10 + Math.random() * 20;
+    const delay = -(Math.random() * dur);
+    el.style.cssText =
+      `left:${Math.random()*100}vw;` +
+      `font-size:${size}px;` +
+      `animation-duration:${dur}s;` +
+      `animation-delay:${delay}s`;
+    container.appendChild(el);
+  }
+})();
+
+// ── BOOT ──────────────────────────────────────────────────
+fetchAll();
+</script>
+</body>
+</html>
