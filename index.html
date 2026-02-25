@@ -1,3 +1,6 @@
+Here's the complete code:
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -33,7 +36,6 @@
       flex-direction: column;
     }
 
-    /* ── HEADER ──────────────────────────────────── */
     #header {
       display: flex;
       align-items: center;
@@ -64,7 +66,6 @@
       margin-top: 2px;
     }
 
-    /* ── TIME SELECTOR ───────────────────────────── */
     #time-controls { display: flex; align-items: center; gap: 5px; }
 
     .time-label {
@@ -92,7 +93,6 @@
     .time-btn:hover { border-color: var(--accent); color: var(--accent); }
     .time-btn.active { background: var(--accent2); border-color: var(--accent); color: #fff; }
 
-    /* ── STATUS / REFRESH ────────────────────────── */
     #header-right { display: flex; align-items: center; gap: 14px; }
 
     #status {
@@ -118,14 +118,11 @@
     #refresh-btn:hover:not(:disabled) { background: var(--accent2); color: #fff; }
     #refresh-btn:disabled { opacity: 0.35; cursor: default; }
 
-    /* ── MAIN LAYOUT ─────────────────────────────── */
     #main { flex: 1; display: flex; overflow: hidden; position: relative; }
 
-    /* ── MAP ─────────────────────────────────────── */
     #map { flex: 1; }
     .leaflet-container { background: var(--bg) !important; }
 
-    /* ── SIDEBAR ─────────────────────────────────── */
     #sidebar {
       width: 260px;
       flex-shrink: 0;
@@ -145,13 +142,11 @@
       border-bottom: 1px solid var(--border);
     }
 
-    /* ── LEGEND ──────────────────────────────────── */
     #legend { padding: 12px 16px; border-bottom: 1px solid var(--border); }
     .legend-row { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
     .legend-swatch { width: 26px; height: 11px; border-radius: 2px; flex-shrink: 0; }
     .legend-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text); }
 
-    /* ── STATION LIST ────────────────────────────── */
     #station-list { flex: 1; overflow-y: auto; padding: 6px 0; }
     #station-list::-webkit-scrollbar { width: 4px; }
     #station-list::-webkit-scrollbar-track { background: transparent; }
@@ -174,7 +169,6 @@
     .station-snow.err  { color: var(--warn);  font-size: 10px; }
     .station-snow.pend { color: var(--muted); font-size: 10px; animation: pulse 1.5s infinite; }
 
-    /* ── LOADING OVERLAY ─────────────────────────── */
     #loading-overlay {
       position: absolute;
       inset: 0;
@@ -205,7 +199,6 @@
     }
     #load-progress { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--accent); }
 
-    /* ── POPUPS ──────────────────────────────────── */
     .leaflet-popup-content-wrapper {
       background: var(--surface) !important;
       border: 1px solid var(--border) !important;
@@ -257,7 +250,6 @@
       line-height: 1.7;
     }
 
-    /* ── ERROR TOAST ─────────────────────────────── */
     #error-toast {
       position: absolute;
       bottom: 20px;
@@ -279,7 +271,6 @@
     }
     #error-toast.show { opacity: 1; }
 
-    /* ── DECORATIVE SNOWFLAKES ───────────────────── */
     .flake {
       position: fixed;
       top: -12px;
@@ -290,12 +281,10 @@
       user-select: none;
     }
 
-    /* ── KEYFRAMES ───────────────────────────────── */
     @keyframes spin  { to { transform: rotate(360deg); } }
     @keyframes pulse { 0%,100% { opacity:.3; } 50% { opacity:1; } }
     @keyframes fall  { to { transform: translateY(105vh) rotate(360deg); } }
 
-    /* ── MOBILE ──────────────────────────────────── */
     @media (max-width: 680px) {
       #sidebar { display: none; }
       #title   { font-size: 22px; }
@@ -356,26 +345,14 @@
 </div>
 
 <script>
-/* ═══════════════════════════════════════════════════════════════
-   NJ SNOWFALL FORECAST MAP
-   Source: National Weather Service API  (api.weather.gov)
-   - Fetches snowfallAmount gridpoint data for 25 NJ locations
-   - Sums forecasted snowfall within selected time window
-   - Caches grid resolution for 24h, forecast data for 1h
-   - Auto-refreshes every 30 minutes
-   - Incrementally renders as each point resolves
-═══════════════════════════════════════════════════════════════ */
 'use strict';
 
-// ── CONFIG ────────────────────────────────────────────────
-const NWS_BASE     = 'https://api.weather.gov';
-const UA           = '(nj-snow-forecast-map, public-github-pages)';
-const AUTO_MS      = 30 * 60 * 1000;         // auto-refresh interval
-const GRID_TTL     = 24 * 60 * 60 * 1000;    // cache grid assignments 24h
-const DATA_TTL     =      60 * 60 * 1000;    // cache forecast data 1h
-const CONCURRENCY  = 4;                       // parallel API calls
+const NWS_BASE    = 'https://api.weather.gov';
+const AUTO_MS     = 30 * 60 * 1000;
+const GRID_TTL    = 24 * 60 * 60 * 1000;
+const DATA_TTL    =      60 * 60 * 1000;
+const CONCURRENCY = 4;
 
-// ── NJ FORECAST POINTS ───────────────────────────────────
 const POINTS = [
   { name: 'Wantage',         lat: 41.2265, lon: -74.6279 },
   { name: 'Newton',          lat: 41.0548, lon: -74.7529 },
@@ -404,32 +381,25 @@ const POINTS = [
   { name: 'Wildwood',        lat: 38.9918, lon: -74.8149 },
 ];
 
-// ── STATE ─────────────────────────────────────────────────
 let windowHours = 24;
 let stations    = [];
 let layerGroup  = L.layerGroup();
 let activeIdx   = null;
 let autoTimer   = null;
 
-// ── MAP INITIALIZATION ────────────────────────────────────
 const MAP = L.map('map', { center: [40.1, -74.5], zoom: 8, zoomControl: false });
 L.control.zoom({ position: 'topright' }).addTo(MAP);
 layerGroup.addTo(MAP);
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-  subdomains: 'abcd',
-  maxZoom: 19,
+  subdomains: 'abcd', maxZoom: 19,
   attribution: '© <a href="https://carto.com" style="color:#4fc3f7">CARTO</a> | Weather: <a href="https://weather.gov" style="color:#4fc3f7">NWS</a>'
 }).addTo(MAP);
 
-// Labels on top pane so markers don't cover place names
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
-  subdomains: 'abcd',
-  maxZoom: 19,
-  pane: 'shadowPane',
+  subdomains: 'abcd', maxZoom: 19, pane: 'shadowPane'
 }).addTo(MAP);
 
-// ── VISUAL SCALES ─────────────────────────────────────────
 function snowColor(inches) {
   if (inches <= 0)  return '#1a2a3a';
   if (inches <  1)  return '#b3e5fc';
@@ -458,7 +428,6 @@ function snowRadius(inches) {
   return 45;
 }
 
-// ── LOCAL STORAGE CACHE ───────────────────────────────────
 function cSet(key, val, ttl) {
   try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), ttl, val })); } catch(_) {}
 }
@@ -471,19 +440,26 @@ function cGet(key) {
   } catch(_) { return null; }
 }
 
-// ── ISO 8601 DURATION → MILLISECONDS ─────────────────────
 function isoMs(dur) {
   if (!dur || typeof dur !== 'string') return 0;
   const m = dur.match(/P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?/);
   if (!m) return 0;
-  return ((+(m[1] || 0) * 24 + +(m[2] || 0)) * 60 + +(m[3] || 0)) * 60000 + +(m[4] || 0) * 1000;
+  return ((+(m[1]||0)*24 + +(m[2]||0))*60 + +(m[3]||0))*60000 + +(m[4]||0)*1000;
 }
 
-// ── SUM SNOWFALL WITHIN TIME WINDOW ──────────────────────
-// NWS values are in meters; we return inches.
-// Handles partial period overlaps proportionally.
-function sumSnow(values, hours) {
+function toInches(val, uom) {
+  if (!uom) return val * 39.3701;
+  const u = uom.toLowerCase();
+  if (u.includes('mm')) return val * 0.0393701;
+  if (u.includes('[in_i]') || u.includes('in_i') || u === 'us:in' || u.endsWith(':in')) return val;
+  return val * 39.3701; // default: wmoUnit:m
+}
+
+function sumSnow(snowData, hours) {
+  const values = Array.isArray(snowData) ? snowData : snowData?.values;
+  const uom    = Array.isArray(snowData) ? 'wmoUnit:m' : (snowData?.uom || 'wmoUnit:m');
   if (!values || !values.length) return 0;
+
   const now    = Date.now();
   const winEnd = now + hours * 3600000;
   let total = 0;
@@ -491,43 +467,37 @@ function sumSnow(values, hours) {
   for (const entry of values) {
     const { validTime, value } = entry || {};
     if (value === null || value === undefined || value < 0) continue;
-    if (!validTime || !validTime.includes('/')) continue;   // guard malformed entries
+    if (!validTime || !validTime.includes('/')) continue;
 
-    const slashIdx = validTime.indexOf('/');
-    const startStr = validTime.slice(0, slashIdx);
-    const durStr   = validTime.slice(slashIdx + 1);
-
-    const pStart = +new Date(startStr);
-    const pDur   = isoMs(durStr);
-    if (!pDur || isNaN(pStart)) continue;                   // guard unparseable times
+    const slash  = validTime.indexOf('/');
+    const pStart = +new Date(validTime.slice(0, slash));
+    const pDur   = isoMs(validTime.slice(slash + 1));
+    if (!pDur || isNaN(pStart)) continue;
     const pEnd = pStart + pDur;
 
-    // Only consider periods that overlap [now, winEnd]
-    if (pStart >= winEnd || pEnd <= now) continue;
+    if (pEnd <= now)     continue;
+    if (pStart >= winEnd) continue;
 
-    const overlapMs = Math.min(pEnd, winEnd) - Math.max(pStart, now);
-    total += value * (overlapMs / pDur);
+    // In-progress periods: count full value (snow still expected to fall)
+    // Future periods: prorate to the portion that falls within the window
+    const contribution = pStart <= now
+      ? value
+      : value * (Math.min(pEnd, winEnd) - pStart) / pDur;
+
+    total += toInches(contribution, uom);
   }
-
-  return total * 39.3701;  // meters → inches
+  return total;
 }
 
-// ── NWS API HELPERS ───────────────────────────────────────
-// Note: 'User-Agent' is a forbidden header in browsers and cannot be set via
-// fetch(). The browser's own UA is sent automatically; NWS accepts this fine.
 const HEADERS = { 'Accept': 'application/geo+json' };
 
 async function resolvePoint(lat, lon) {
-  const ckey   = `nws_grid_${lat.toFixed(4)}_${lon.toFixed(4)}`;
-  const cached = cGet(ckey);
-  if (cached) return cached;
+  const ckey = `nws_grid_${lat.toFixed(4)}_${lon.toFixed(4)}`;
+  const hit  = cGet(ckey);
+  if (hit) return hit;
 
-  const res = await fetch(
-    `${NWS_BASE}/points/${lat.toFixed(4)},${lon.toFixed(4)}`,
-    { headers: HEADERS }
-  );
-  if (!res.ok) throw new Error(`NWS /points/ returned ${res.status}`);
-
+  const res = await fetch(`${NWS_BASE}/points/${lat.toFixed(4)},${lon.toFixed(4)}`, { headers: HEADERS });
+  if (!res.ok) throw new Error(`/points/ ${res.status}`);
   const { properties: p } = await res.json();
   const result = { office: p.gridId, gridX: p.gridX, gridY: p.gridY };
   cSet(ckey, result, GRID_TTL);
@@ -535,23 +505,19 @@ async function resolvePoint(lat, lon) {
 }
 
 async function fetchGridSnow(office, gridX, gridY) {
-  const ckey   = `nws_snow_${office}_${gridX}_${gridY}`;
-  const cached = cGet(ckey);
-  if (cached) return cached;
+  const ckey = `nws_snow_${office}_${gridX}_${gridY}`;
+  const hit  = cGet(ckey);
+  if (hit) return hit;
 
-  const res = await fetch(
-    `${NWS_BASE}/gridpoints/${office}/${gridX},${gridY}`,
-    { headers: HEADERS }
-  );
-  if (!res.ok) throw new Error(`NWS /gridpoints/ returned ${res.status}`);
-
+  const res = await fetch(`${NWS_BASE}/gridpoints/${office}/${gridX},${gridY}`, { headers: HEADERS });
+  if (!res.ok) throw new Error(`/gridpoints/ ${res.status}`);
   const json   = await res.json();
-  const values = json.properties?.snowfallAmount?.values || [];
-  cSet(ckey, values, DATA_TTL);
-  return values;
+  const prop   = json.properties?.snowfallAmount;
+  const result = { values: prop?.values || [], uom: prop?.uom || 'wmoUnit:m' };
+  cSet(ckey, result, DATA_TTL);
+  return result;
 }
 
-// ── POPUP HTML ────────────────────────────────────────────
 function makePopup(s) {
   const WINDOWS = [
     { label: '24 hours', h: 24  },
@@ -560,39 +526,32 @@ function makePopup(s) {
     { label: '7 days',   h: 168 },
   ];
 
-  const fmtV = (v) => {
+  const fmtV = v => {
     if (v === null) return `<span class="pop-v zero">—</span>`;
     const cls = v < 0.05 ? 'zero' : v >= 12 ? 'heavy' : '';
-    const txt = v < 0.05 ? 'None' : v.toFixed(1) + '"';
-    return `<span class="pop-v ${cls}">${txt}</span>`;
+    return `<span class="pop-v ${cls}">${v < 0.05 ? 'None' : v.toFixed(1) + '"'}</span>`;
   };
 
-  const rows = WINDOWS.map(({ label, h }) => {
-    const v = s.snowValues != null ? sumSnow(s.snowValues, h) : null;
-    return `<div class="pop-row"><span class="pop-k">${label}</span>${fmtV(v)}</div>`;
-  }).join('');
+  const rows = WINDOWS.map(({ label, h }) =>
+    `<div class="pop-row"><span class="pop-k">${label}</span>${fmtV(s.snowData ? sumSnow(s.snowData, h) : null)}</div>`
+  ).join('');
 
+  const uomLabel = s.uom ? ` · Unit: ${s.uom.replace('wmoUnit:', '')}` : '';
   const meta = s.gridInfo
-    ? `NWS Office: ${s.gridInfo.office} · Grid: ${s.gridInfo.gridX},${s.gridInfo.gridY}`
+    ? `NWS Office: ${s.gridInfo.office} · Grid: ${s.gridInfo.gridX},${s.gridInfo.gridY}${uomLabel}`
     : 'Grid info unavailable';
 
-  return `<div class="pop-title">${s.name}</div>
-    ${rows}
+  return `<div class="pop-title">${s.name}</div>${rows}
     <div class="pop-meta">${meta}<br>${s.lat.toFixed(4)}°N, ${Math.abs(s.lon).toFixed(4)}°W</div>`;
 }
 
-// ── RENDER MARKERS ────────────────────────────────────────
-// Store markers in a plain array (same index as stations[]) so sidebar
-// clicks can reliably open the correct popup.
 const markerArray = [];
 
 function renderMarkers() {
   layerGroup.clearLayers();
   markerArray.length = 0;
-
   stations.forEach((s, idx) => {
     const snow = s.snowInches ?? 0;
-
     const marker = L.circleMarker([s.lat, s.lon], {
       radius:      snowRadius(snow),
       fillColor:   s.error ? '#1a1a2a' : snowColor(snow),
@@ -600,15 +559,13 @@ function renderMarkers() {
       color:       s.error ? '#333'    : (snow > 0 ? 'rgba(255,255,255,0.35)' : 'rgba(79,195,247,0.3)'),
       weight:      snow > 6 ? 2 : 1,
     });
-
     marker.bindPopup(makePopup(s), { maxWidth: 270 });
     marker.on('click', () => { setActive(idx); marker.openPopup(); });
     layerGroup.addLayer(marker);
-    markerArray[idx] = marker;   // index matches stations[]
+    markerArray[idx] = marker;
   });
 }
 
-// ── RENDER SIDEBAR LIST ───────────────────────────────────
 function renderList() {
   const list   = document.getElementById('station-list');
   const sorted = stations.map((s, idx) => ({ ...s, idx }))
@@ -616,13 +573,12 @@ function renderList() {
 
   list.innerHTML = sorted.map((s, i) => {
     let txt, cls;
-    if (s.snowInches === null) { txt = '···'; cls = 'pend'; }
-    else if (s.error)          { txt = 'ERR'; cls = 'err'; }
-    else if (s.snowInches < 0.05) { txt = 'None'; cls = 'none'; }
-    else                       { txt = s.snowInches.toFixed(1) + '"'; cls = ''; }
+    if (s.snowInches === null)     { txt = '···';                      cls = 'pend'; }
+    else if (s.error)              { txt = 'ERR';                      cls = 'err';  }
+    else if (s.snowInches < 0.05)  { txt = 'None';                     cls = 'none'; }
+    else                           { txt = s.snowInches.toFixed(1)+'"'; cls = '';    }
 
-    const activeCls = s.idx === activeIdx ? ' active' : '';
-    return `<div class="station-item${activeCls}" data-idx="${s.idx}"
+    return `<div class="station-item${s.idx === activeIdx ? ' active' : ''}" data-idx="${s.idx}"
                style="animation: fadeIn .2s ${i * 15}ms both">
       <span class="station-name">${s.name}</span>
       <span class="station-snow ${cls}">${txt}</span>
@@ -632,15 +588,12 @@ function renderList() {
   list.querySelectorAll('.station-item').forEach(el => {
     el.addEventListener('click', () => {
       const idx = +el.dataset.idx;
-      const s   = stations[idx];
       setActive(idx);
-      MAP.flyTo([s.lat, s.lon], 11, { duration: 0.9 });
-      // Use markerArray for reliable index→marker lookup
+      MAP.flyTo([stations[idx].lat, stations[idx].lon], 11, { duration: 0.9 });
       markerArray[idx]?.openPopup();
     });
   });
 
-  // Inject fadeIn keyframe if missing
   if (!document.getElementById('fade-style')) {
     const st = document.createElement('style');
     st.id = 'fade-style';
@@ -651,16 +604,15 @@ function renderList() {
 
 function setActive(idx) {
   activeIdx = idx;
-  document.querySelectorAll('.station-item').forEach(el => {
-    el.classList.toggle('active', +el.dataset.idx === idx);
-  });
+  document.querySelectorAll('.station-item').forEach(el =>
+    el.classList.toggle('active', +el.dataset.idx === idx)
+  );
 }
 
-// ── UI HELPERS ────────────────────────────────────────────
-const overlay   = document.getElementById('loading-overlay');
-const progEl    = document.getElementById('load-progress');
-const statusEl  = document.getElementById('status');
-const toastEl   = document.getElementById('error-toast');
+const overlay  = document.getElementById('loading-overlay');
+const progEl   = document.getElementById('load-progress');
+const statusEl = document.getElementById('status');
+const toastEl  = document.getElementById('error-toast');
 let toastTimer;
 
 function setOverlay(show) { overlay.classList.toggle('hidden', !show); }
@@ -673,28 +625,32 @@ function showToast(msg) {
   toastTimer = setTimeout(() => toastEl.classList.remove('show'), 8000);
 }
 
-// ── MAIN DATA FETCH ───────────────────────────────────────
 async function fetchAll(force = false) {
   if (autoTimer) clearTimeout(autoTimer);
   document.getElementById('refresh-btn').disabled = true;
   setOverlay(true);
   setStatus('Fetching…');
 
-  // On force-refresh, clear forecast cache (preserve grid cache which is stable)
-  if (force) {
-    for (const k of Object.keys(localStorage)) {
-      if (k.startsWith('nws_snow_')) localStorage.removeItem(k);
+  // Evict old-format cache entries (pre-uom, plain array)
+  for (const k of Object.keys(localStorage)) {
+    if (k.startsWith('nws_snow_')) {
+      try {
+        const it = JSON.parse(localStorage.getItem(k));
+        if (it && Array.isArray(it.val)) localStorage.removeItem(k);
+      } catch(_) { localStorage.removeItem(k); }
     }
   }
+  if (force) {
+    for (const k of Object.keys(localStorage))
+      if (k.startsWith('nws_snow_')) localStorage.removeItem(k);
+  }
 
-  // Init placeholders
-  stations = POINTS.map(p => ({ ...p, snowInches: null, snowValues: null, error: false }));
+  stations = POINTS.map(p => ({ ...p, snowInches: null, snowData: null, error: false }));
   renderList();
 
   let done = 0;
   progEl.textContent = `0 / ${POINTS.length} points`;
 
-  // Work queue with bounded concurrency
   const queue = POINTS.map((p, i) => ({ p, i }));
 
   async function worker() {
@@ -702,17 +658,16 @@ async function fetchAll(force = false) {
       const { p, i } = queue.shift();
       try {
         const gridInfo   = await resolvePoint(p.lat, p.lon);
-        const snowValues = await fetchGridSnow(gridInfo.office, gridInfo.gridX, gridInfo.gridY);
-        const snowInches = sumSnow(snowValues, windowHours);
-        stations[i] = { ...p, gridInfo, snowValues, snowInches, error: false };
+        const snowData   = await fetchGridSnow(gridInfo.office, gridInfo.gridX, gridInfo.gridY);
+        const snowInches = sumSnow(snowData, windowHours);
+        stations[i] = { ...p, gridInfo, snowData, uom: snowData.uom, snowInches, error: false };
       } catch (err) {
         console.warn(`[${p.name}] ${err.message}`);
-        stations[i] = { ...p, snowInches: 0, snowValues: null, error: true, errMsg: err.message };
+        stations[i] = { ...p, snowInches: 0, snowData: null, error: true };
       }
       done++;
       progEl.textContent = `${done} / ${POINTS.length} points`;
-      // Incremental render — guarded so a render error can't kill the worker
-      try { renderMarkers(); renderList(); } catch(e) { console.error('Incremental render error:', e); }
+      try { renderMarkers(); renderList(); } catch(e) { console.error('Render error:', e); }
     }
   }
 
@@ -720,23 +675,19 @@ async function fetchAll(force = false) {
     await Promise.all(Array.from({ length: CONCURRENCY }, worker));
     const nOk  = stations.filter(s => !s.error).length;
     const nErr = stations.filter(s =>  s.error).length;
-    try { renderMarkers(); renderList(); } catch(e) { console.error('Render error:', e); }
+    try { renderMarkers(); renderList(); } catch(e) { console.error('Final render error:', e); }
     setStatus(`Updated ${new Date().toLocaleTimeString()} · ${nOk} / ${POINTS.length} pts OK`);
-    if (nErr > 0) {
-      showToast(`${nErr} location(s) unavailable — NWS may be rate-limiting. Try refreshing.`);
-    }
+    if (nErr > 0) showToast(`${nErr} location(s) unavailable — NWS may be rate-limiting. Try refreshing.`);
   } catch (err) {
     console.error('fetchAll failed:', err);
     setStatus('Error loading data — check console');
   } finally {
-    // Always dismiss overlay and re-enable button regardless of what happened above
     setOverlay(false);
     document.getElementById('refresh-btn').disabled = false;
     autoTimer = setTimeout(() => fetchAll(), AUTO_MS);
   }
 }
 
-// ── TIME WINDOW BUTTONS ───────────────────────────────────
 document.querySelectorAll('.time-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const h = +btn.dataset.hours;
@@ -744,10 +695,7 @@ document.querySelectorAll('.time-btn').forEach(btn => {
     windowHours = h;
     document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    // Recompute totals from cached raw values — no API call needed
-    stations.forEach(s => {
-      if (s.snowValues) s.snowInches = sumSnow(s.snowValues, h);
-    });
+    stations.forEach(s => { if (s.snowData) s.snowInches = sumSnow(s.snowData, h); });
     renderMarkers();
     renderList();
   });
@@ -755,28 +703,22 @@ document.querySelectorAll('.time-btn').forEach(btn => {
 
 document.getElementById('refresh-btn').addEventListener('click', () => fetchAll(true));
 
-// ── DECORATIVE SNOWFLAKES ─────────────────────────────────
 (function spawnFlakes() {
   const container = document.getElementById('flakes');
-  const glyphs = ['❄', '❅', '❆', '·', '*'];
+  const glyphs = ['❄','❅','❆','·','*'];
   for (let i = 0; i < 22; i++) {
-    const el   = document.createElement('div');
+    const el = document.createElement('div');
     el.className = 'flake';
     el.textContent = glyphs[i % glyphs.length];
-    const size  = 8 + Math.random() * 14;
-    const dur   = 10 + Math.random() * 20;
-    const delay = -(Math.random() * dur);
-    el.style.cssText =
-      `left:${Math.random()*100}vw;` +
-      `font-size:${size}px;` +
-      `animation-duration:${dur}s;` +
-      `animation-delay:${delay}s`;
+    const size = 8 + Math.random() * 14;
+    const dur  = 10 + Math.random() * 20;
+    el.style.cssText = `left:${Math.random()*100}vw;font-size:${size}px;animation-duration:${dur}s;animation-delay:-${Math.random()*dur}s`;
     container.appendChild(el);
   }
 })();
 
-// ── BOOT ──────────────────────────────────────────────────
 fetchAll();
 </script>
 </body>
 </html>
+```
